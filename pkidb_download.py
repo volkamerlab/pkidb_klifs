@@ -24,28 +24,58 @@ def get_data_from_pkidb():
 
     # Get table rows
     body = table.find('tbody')
-    rows = body.find_all('tr')
-    rows = [[cell.text for cell in row.find_all('td')] for row in rows]
-
-    pkidb = pd.DataFrame(rows, columns=header)
+    rows = body.find_all('tr')    
+    # Separator needed to replace <br> with space, otherwise 'a</br>b' becomes 'ab' instead of 'a b'
+    rows = [[cell.get_text(separator=u' ') for cell in row.find_all('td')] for row in rows]  
+    
+    # Cast data to DataFrame
+    pkidb_ligands = pd.DataFrame(rows, columns=header)
+    pkidb_ligands.rename(columns={i: i.replace(' ', '_') for i in pkidb_ligands.columns}, inplace=True)
+    pkidb_ligands.rename(columns={'Melting_points_(°C)': 'Melting_points_C'}, inplace=True)
     
     # Set dtypes
-    pkidb = pkidb.astype(
+    pkidb_ligands = pkidb_ligands.astype(
         {
             'Phase': 'float64', 
+            'Type': 'float64',
             'RoF': 'int32', 
             'MW': 'float64', 
             'LogP': 'float64', 
             'TPSA': 'float64',
             'HBA': 'int32', 
             'HBD': 'int32',  
-            'NRB': 'int32' 
+            'NRB': 'int32',
+            #'First_Approval': 'int32'
         }
     )
     
-    # Format some columns
-    pkidb['Smiles'] = [i.split('InChiKey=')[0].split('Smiles=')[1] for i in pkidb.Canonical_Smiles_InChiKey]
-    pkidb['InChIKey'] = [i.split('InChiKey=')[1] for i in pkidb.Canonical_Smiles_InChiKey]
-    pkidb.LigID = [i[1:-1] if i != 'NaN' else np.nan for i in pkidb.LigID]
-
-    return pkidb
+    # Some values are nan or Nan but of type str: Replace by None
+    pkidb_ligands.replace(to_replace={'nan': None}, value=None, method=None, inplace=True)
+    pkidb_ligands.replace(to_replace={'NaN': None}, value=None, method=None, inplace=True)
+    
+    # LigID column: Remove '' from string
+    pkidb_ligands.LigID = pkidb_ligands.LigID.apply(lambda x: x if x is None else x.replace("'", ''))
+    
+    # Split multiple entries to list
+    pkidb_ligands.BrandName = pkidb_ligands.BrandName.apply(lambda x: x if x is None else x.split(';'))
+    pkidb_ligands.pdbID = pkidb_ligands.pdbID.apply(lambda x: x if x is None else x.split())
+    pkidb_ligands.Targets = pkidb_ligands.Targets.apply(lambda x: x if x is None else x.split())
+    pkidb_ligands.Kinase_families = pkidb_ligands.Kinase_families.apply(lambda x: None if x=='' else x.split())    
+    pkidb_ligands.Synonyms = pkidb_ligands.Synonyms.apply(lambda x: x if x is None else x.split())
+    
+    # FDA_approved, Melting_points_C columns: Replace '' by None
+    pkidb_ligands.FDA_approved = pkidb_ligands.FDA_approved.apply(lambda x: None if x=='' else x)
+    pkidb_ligands.Melting_points_C = pkidb_ligands.Melting_points_C.apply(lambda x: None if x=='' else x)  # Still not pretty (ranges as strings)
+    
+    # Extract SMILES and InChIKeys
+    encoding = pkidb_ligands.Canonical_Smiles_InChiKey
+    encoding = encoding.apply(lambda x: x.replace('Smiles =', 'Smiles='))
+    encoding = encoding.apply(lambda x: x.replace('InChiKey =', 'InChiKey='))
+    encoding = encoding.apply(lambda x: x.split())
+    pkidb_ligands['Canonical_Smiles'] = encoding.apply(lambda x: x[0].replace('Smiles=', ''))
+    pkidb_ligands['InChIKey'] = encoding.apply(lambda x: x[1].replace('InChiKey=', ''))
+    
+    # Links column: Remove
+    pkidb_ligands.drop(['Links', 'Canonical_Smiles_InChiKey'], axis=1, inplace=True)
+    
+    return pkidb_ligands
