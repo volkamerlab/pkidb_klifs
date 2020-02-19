@@ -1,6 +1,10 @@
 # Extract protein kinase inhibitor data
 
-This small repository collects protein kinase inhibitors (PKIs) in clinical trails from the PKIDB and extracts PKI ligands deposited in KLIFS.
+This small repository (i) collects protein kinase inhibitors (PKIs) in clinical trails from the PKIDB and (ii) extracts PKIs deposited in KLIFS.
+
+## Quick start
+
+Use the quick start notebook `quick_start.ipynb` to quickly access the datasets on (i) PKIs in PKIDB and (ii) PKIs in KLIFS.
 
 ## Data sources
 
